@@ -12,7 +12,10 @@ class FeePolicyPersistenceAdapter(
     private val repo: FeePolicyJpaRepository,
 ) : FeePolicyOutPort {
     override fun findEffectivePolicy(partnerId: Long, at: java.time.LocalDateTime): FeePolicy? =
-        repo.findTop1ByPartnerIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDesc(partnerId, at.toInstant(ZoneOffset.UTC))?.let {
+        repo.findTop1ByPartnerIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDesc(
+            partnerId,
+            at.toInstant(ZoneOffset.UTC)
+        )?.let {
             FeePolicy(
                 id = it.id,
                 partnerId = it.partnerId,

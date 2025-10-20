@@ -8,9 +8,14 @@ import im.bigs.pg.application.payment.port.out.PaymentOutPort
 import im.bigs.pg.application.pg.port.out.PgApproveRequest
 import im.bigs.pg.application.pg.port.out.PgClientOutPort
 import im.bigs.pg.domain.calculation.FeeCalculator
+import im.bigs.pg.domain.partner.FeePolicy
 import im.bigs.pg.domain.payment.Payment
 import im.bigs.pg.domain.payment.PaymentStatus
 import org.springframework.stereotype.Service
+import java.math.BigDecimal
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 
 /**
  * 결제 생성 유스케이스 구현체.
@@ -37,6 +42,7 @@ class PaymentService(
         val pgClient = pgClients.firstOrNull { it.supports(partner.id) }
             ?: throw IllegalStateException("No PG client for partner ${partner.id}")
 
+        // PG 승인 요청
         val approve = pgClient.approve(
             PgApproveRequest(
                 partnerId = partner.id,
@@ -46,13 +52,23 @@ class PaymentService(
                 productName = command.productName,
             ),
         )
-        val hardcodedRate = java.math.BigDecimal("0.0300")
-        val hardcodedFixed = java.math.BigDecimal("100")
-        val (fee, net) = FeeCalculator.calculateFee(command.amount, hardcodedRate, hardcodedFixed)
+        // 제휴사별 수수료 정책 조회
+        val policy = feePolicyRepository.findEffectivePolicy(partner.id)
+            ?: FeePolicy(
+                partnerId = partner.id,
+                effectiveFrom = LocalDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC),
+                percentage = BigDecimal("0.0300"),
+                fixedFee = BigDecimal("100")
+            )
+
+        // 정책 기반 수수료 계산
+        val (fee, net) = FeeCalculator.calculateFee(command.amount, policy.percentage, policy.fixedFee)
+
+        // Payment 생성 및 저장
         val payment = Payment(
             partnerId = partner.id,
             amount = command.amount,
-            appliedFeeRate = hardcodedRate,
+            appliedFeeRate = policy.percentage,
             feeAmount = fee,
             netAmount = net,
             cardBin = command.cardBin,
