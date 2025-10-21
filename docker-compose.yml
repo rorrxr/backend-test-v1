@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # MariaDB 설정
+  mariadb:
+    image: mariadb:11.3
+    container_name: mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: root1234
+      MARIADB_DATABASE: payment_db
+      MARIADB_USER: appuser
+      MARIADB_PASSWORD: app1234
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "3307:3306"
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    networks:
+      - pg-network
+
+  # payment gateway
+  pg-payment-server:
+    build:
+      context: .
+      dockerfile: ./modules/bootstrap/api-payment-gateway/Dockerfile
+    container_name: pg-payment-server
+    depends_on:
+      - mariadb
+      - redis
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb:3306/payment_db
+      SPRING_DATASOURCE_USERNAME: appuser
+      SPRING_DATASOURCE_PASSWORD: app1234
+      SPRING_PROFILES_ACTIVE: docker
+    ports:
+      - "8080:8080"
+    networks:
+      - pg-network
+
+  # prometheus 프로메테우스 설정
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=200h'
+    depends_on:
+      - pg-payment-server
+    networks:
+      - pg-network
+
+  # Grafana 그라파나 설정
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+    networks:
+      - pg-network
+
+volumes:
+  mariadb-data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  pg-network:
+    driver: bridge
