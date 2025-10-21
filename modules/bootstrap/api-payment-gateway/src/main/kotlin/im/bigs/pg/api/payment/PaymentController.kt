@@ -7,6 +7,8 @@ import im.bigs.pg.api.payment.dto.CreatePaymentRequest
 import im.bigs.pg.api.payment.dto.PaymentResponse
 import im.bigs.pg.api.payment.dto.QueryResponse
 import im.bigs.pg.api.payment.dto.Summary
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.ResponseEntity
 import org.springframework.validation.annotation.Validated
@@ -23,6 +25,7 @@ import java.time.LocalDateTime
  * - POST: 결제 생성
  * - GET: 결제 조회(커서 페이지네이션 + 통계)
  */
+@Tag(name = "Payments", description = "결제 생성 및 조회 API")
 @RestController
 @RequestMapping("/api/v1/payments")
 @Validated
@@ -43,6 +46,7 @@ class PaymentController(
      * @param req 결제 요청 본문
      * @return 생성된 결제 요약 응답
      */
+    @Operation(summary = "결제 생성", description = "PG 승인 후 결제 정보 저장 및 정산금 계산")
     @PostMapping
     fun create(@RequestBody req: CreatePaymentRequest): ResponseEntity<PaymentResponse> {
         val saved = paymentUseCase.pay(
@@ -58,7 +62,7 @@ class PaymentController(
     }
 
     /** 목록 + 통계를 포함한 조회 응답. */
-    
+
 
     /**
      * 결제 조회(커서 기반 페이지네이션 + 통계).
@@ -71,6 +75,7 @@ class PaymentController(
      * @param limit 페이지 크기(기본 20)
      * @return 목록/통계/커서 정보
      */
+    @Operation(summary = "결제 내역 조회", description = "조건 기반 결제 리스트 및 통계 요약 조회 (커서 기반 페이징)")
     @GetMapping
     fun query(
         @RequestParam(required = false) partnerId: Long?,
