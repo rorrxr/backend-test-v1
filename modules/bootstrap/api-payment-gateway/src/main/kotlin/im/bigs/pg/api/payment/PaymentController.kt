@@ -8,6 +8,9 @@ import im.bigs.pg.api.payment.dto.PaymentResponse
 import im.bigs.pg.api.payment.dto.QueryResponse
 import im.bigs.pg.api.payment.dto.Summary
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.ExampleObject
+import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.ResponseEntity
@@ -46,7 +49,40 @@ class PaymentController(
      * @param req 결제 요청 본문
      * @return 생성된 결제 요약 응답
      */
-    @Operation(summary = "결제 생성", description = "PG 승인 후 결제 정보 저장 및 정산금 계산")
+    @Operation(
+        summary = "결제 생성",
+        description = "PG 승인 후 결제 정보 저장 및 정산금 계산",
+        responses = [
+            ApiResponse(
+                responseCode = "200",
+                description = "성공 시 결제 정보 반환",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        examples = [
+                            ExampleObject(
+                                name = "성공 예시",
+                                value = """
+                                {
+                                  "id": 99,
+                                  "partnerId": 1,
+                                  "amount": 10000,
+                                  "appliedFeeRate": 0.0300,
+                                  "feeAmount": 400,
+                                  "netAmount": 9600,
+                                  "cardLast4": "4242",
+                                  "approvalCode": "PG20250101ABC123",
+                                  "approvedAt": "2025-01-01T00:00:00Z",
+                                  "status": "APPROVED"
+                                }
+                                """
+                            )
+                        ]
+                    )
+                ]
+            )
+        ]
+    )
     @PostMapping
     fun create(@RequestBody req: CreatePaymentRequest): ResponseEntity<PaymentResponse> {
         val saved = paymentUseCase.pay(
