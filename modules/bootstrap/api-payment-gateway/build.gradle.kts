@@ -15,6 +15,9 @@ dependencies {
     implementation(libs.bundles.bootstrap)
     // Swagger (SpringDoc OpenAPI)
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
+    // 모니터링 의존성 추가
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("io.micrometer:micrometer-registry-prometheus")
     testImplementation(libs.bundles.test)
     testImplementation(libs.spring.boot.starter.test) {
         exclude(module = "mockito-core")
