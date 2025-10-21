@@ -34,7 +34,7 @@ interface PaymentJpaRepository : JpaRepository<PaymentEntity, Long> {
         @Param("toAt") toAt: Instant?,
         @Param("cursorCreatedAt") cursorCreatedAt: Instant?,
         @Param("cursorId") cursorId: Long?,
-        org: org.springframework.data.domain.Pageable,
+        pageable: org.springframework.data.domain.Pageable,
     ): List<PaymentEntity>
 
     /** 통계 합계/건수 조회. */

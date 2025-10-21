@@ -31,7 +31,7 @@ class PaymentPersistenceAdapter(
             toAt = query.to?.toInstant(ZoneOffset.UTC),
             cursorCreatedAt = query.cursorCreatedAt?.toInstant(ZoneOffset.UTC),
             cursorId = query.cursorId,
-            org = PageRequest.of(0, pageSize + 1),
+            pageable = PageRequest.of(0, 21)
         )
         val hasNext = list.size > pageSize
         val items = list.take(pageSize)
