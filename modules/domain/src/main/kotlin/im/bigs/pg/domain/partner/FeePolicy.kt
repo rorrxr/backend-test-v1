@@ -33,8 +33,10 @@ data class FeePolicy(
     fun calculateFee(amount: BigDecimal): BigDecimal {
         // percentage, fixedFee 모두 BigDecimal로 정확히 계산
         val variableFee = amount.multiply(percentage)
-            .setScale(4, RoundingMode.HALF_UP) // 중간 계산 시 4자리까지 유지
-        val totalFee = variableFee.add(fixedFee ?: BigDecimal.ZERO)
+            .setScale(4, RoundingMode.HALF_UP) // 중간 계산 시 4자리 유지
+        val fixed = fixedFee ?: BigDecimal.ZERO
+        val totalRaw = variableFee.add(fixed)
+        val totalFinal = totalRaw.setScale(2, RoundingMode.HALF_UP)
 
         // 디버그 로그 출력
         println(
@@ -42,14 +44,14 @@ data class FeePolicy(
             [FeePolicy Debug]
             - amount       : $amount
             - percentage   : $percentage
-            - fixedFee     : $fixedFee
+            - fixedFee     : $fixed
             - variableFee  : $variableFee
-            - total (raw)  : ${variableFee.add(fixedFee)}
-            - total (final): $totalFee
+            - total (raw)  : $totalRaw
+            - total (final): $totalFinal
             """.trimIndent()
         )
 
-        return totalFee.setScale(2, RoundingMode.HALF_UP)
+        return totalFinal
     }
 
     companion object {
@@ -61,4 +63,5 @@ data class FeePolicy(
             fixedFee = BigDecimal("100")
         )
     }
+
 }
