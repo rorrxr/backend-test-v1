@@ -52,17 +52,14 @@ class PaymentService(
                 productName = command.productName,
             ),
         )
+
         // 제휴사별 수수료 정책 조회
         val policy = feePolicyRepository.findEffectivePolicy(partner.id)
-            ?: FeePolicy(
-                partnerId = partner.id,
-                effectiveFrom = LocalDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC),
-                percentage = BigDecimal("0.0300"),
-                fixedFee = BigDecimal("100")
-            )
+            ?: FeePolicy.default(partner.id)
 
-        // 정책 기반 수수료 계산
-        val (fee, net) = FeeCalculator.calculateFee(command.amount, policy.percentage, policy.fixedFee)
+        // 정책 기반 수수료 계산 (반올림 포함)
+        val fee = policy.calculateFee(command.amount)
+        val net = command.amount.subtract(fee)
 
         // Payment 생성 및 저장
         val payment = Payment(

@@ -2,6 +2,7 @@ package im.bigs.pg.domain.partner
 
 import com.fasterxml.jackson.annotation.JsonFormat
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.LocalDateTime
 
 /**
@@ -22,4 +23,26 @@ data class FeePolicy(
     val effectiveFrom: LocalDateTime,
     val percentage: BigDecimal, // e.g., 0.0235 (2.35%)
     val fixedFee: BigDecimal? = null,
-)
+) {
+    /**
+     * 수수료 금액 계산
+     * calculateFee() 내부에서 소수점 2자리, HALF_UP 반올림 적용
+     * fallback 정책은 default() companion 함수로 제공
+     * FeeCalculator 대신 도메인 객체 자체에 계산 책임 위임
+     */
+    fun calculateFee(amount: BigDecimal): BigDecimal {
+        val variableFee = amount.multiply(percentage)
+        val totalFee = variableFee.add(fixedFee ?: BigDecimal.ZERO)
+        return totalFee.setScale(2, RoundingMode.HALF_UP)
+    }
+
+    companion object {
+        /** 정책 미존재 시 기본 수수료 정책 (3% + 100원) */
+        fun default(partnerId: Long): FeePolicy = FeePolicy(
+            partnerId = partnerId,
+            effectiveFrom = LocalDateTime.MIN,
+            percentage = BigDecimal("0.0300"),
+            fixedFee = BigDecimal("100")
+        )
+    }
+}
