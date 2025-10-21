@@ -31,8 +31,24 @@ data class FeePolicy(
      * FeeCalculator 대신 도메인 객체 자체에 계산 책임 위임
      */
     fun calculateFee(amount: BigDecimal): BigDecimal {
+        // percentage, fixedFee 모두 BigDecimal로 정확히 계산
         val variableFee = amount.multiply(percentage)
+            .setScale(4, RoundingMode.HALF_UP) // 중간 계산 시 4자리까지 유지
         val totalFee = variableFee.add(fixedFee ?: BigDecimal.ZERO)
+
+        // 디버그 로그 출력
+        println(
+            """
+            [FeePolicy Debug]
+            - amount       : $amount
+            - percentage   : $percentage
+            - fixedFee     : $fixedFee
+            - variableFee  : $variableFee
+            - total (raw)  : ${variableFee.add(fixedFee)}
+            - total (final): $totalFee
+            """.trimIndent()
+        )
+
         return totalFee.setScale(2, RoundingMode.HALF_UP)
     }
 
