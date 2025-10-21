@@ -4,15 +4,6 @@ import java.nio.file.Files
 import java.nio.file.SimpleFileVisitor
 import kotlin.io.path.absolute
 
-pluginManagement {
-    plugins {
-        kotlin("jvm") version "2.2.0"
-    }
-}
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
-}
-
 rootProject.name = "backend-test-v1"
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")

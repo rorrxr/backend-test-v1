@@ -1,6 +1,3 @@
-plugins {
-    kotlin("jvm")
-}
 tasks.jar {
     enabled = false
 }
@@ -22,11 +19,4 @@ dependencies {
     }
     testImplementation(libs.spring.mockk)
     testImplementation(libs.database.h2)
-    implementation(kotlin("stdlib-jdk8"))
-}
-repositories {
-    mavenCentral()
-}
-kotlin {
-    jvmToolchain(8)
 }
