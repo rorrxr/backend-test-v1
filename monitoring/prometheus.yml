@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 5s      # 메트릭 수집 주기 (기본 15초를 5초로 단축)
+
+scrape_configs:
+  # Spring Boot 결제 도메인 서버 메트릭 수집
+  - job_name: 'pg-payment-server'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['pg-payment-server:8080']
+        labels:
+          application: 'payment-gateway'
