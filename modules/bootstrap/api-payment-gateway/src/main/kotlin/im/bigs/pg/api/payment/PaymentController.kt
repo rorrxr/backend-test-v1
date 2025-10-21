@@ -75,21 +75,38 @@ class PaymentController(
     fun query(
         @RequestParam(required = false) partnerId: Long?,
         @RequestParam(required = false) status: String?,
-        @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") from: LocalDateTime?,
-        @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") to: LocalDateTime?,
+        @RequestParam(required = false)
+        @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+        from: LocalDateTime?,
+        @RequestParam(required = false)
+        @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+        to: LocalDateTime?,
         @RequestParam(required = false) cursor: String?,
         @RequestParam(defaultValue = "20") limit: Int,
     ): ResponseEntity<QueryResponse> {
-        val res = queryPaymentsUseCase.query(
-            QueryFilter(partnerId, status, from, to, cursor, limit),
+        val result = queryPaymentsUseCase.query(
+            QueryFilter(
+                partnerId = partnerId,
+                status = status,
+                from = from,
+                to = to,
+                cursor = cursor,
+                limit = limit.coerceIn(1, 200)
+            )
         )
+
         return ResponseEntity.ok(
             QueryResponse(
-                items = res.items.map { PaymentResponse.from(it) },
-                summary = Summary(res.summary.count, res.summary.totalAmount, res.summary.totalNetAmount),
-                nextCursor = res.nextCursor,
-                hasNext = res.hasNext,
-            ),
+                items = result.items.map { PaymentResponse.from(it) },
+                summary = Summary(
+                    count = result.summary.count,
+                    totalAmount = result.summary.totalAmount,
+                    totalNetAmount = result.summary.totalNetAmount
+                ),
+                nextCursor = result.nextCursor,
+                hasNext = result.hasNext
+            )
         )
     }
+
 }

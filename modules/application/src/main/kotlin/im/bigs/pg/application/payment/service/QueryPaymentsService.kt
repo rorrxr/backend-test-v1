@@ -1,9 +1,13 @@
 package im.bigs.pg.application.payment.service
 
 import im.bigs.pg.application.payment.port.`in`.*
+import im.bigs.pg.application.payment.port.out.PaymentOutPort
+import im.bigs.pg.application.payment.port.out.PaymentQuery
+import im.bigs.pg.application.payment.port.out.PaymentSummaryFilter
 import im.bigs.pg.domain.payment.PaymentSummary
 import org.springframework.stereotype.Service
 import java.time.Instant
+import java.time.ZoneOffset
 import java.util.Base64
 
 /**
@@ -12,7 +16,9 @@ import java.util.Base64
  * - 통계는 조회 조건과 동일한 집합을 대상으로 계산됩니다.
  */
 @Service
-class QueryPaymentsService : QueryPaymentsUseCase {
+class QueryPaymentsService(
+    private val paymentOutPort: PaymentOutPort
+) : QueryPaymentsUseCase {
     /**
      * 필터를 기반으로 결제 내역을 조회합니다.
      *
@@ -23,13 +29,54 @@ class QueryPaymentsService : QueryPaymentsUseCase {
      * @return 조회 결과(목록/통계/커서)
      */
     override fun query(filter: QueryFilter): QueryResult {
+        // 커서 디코드
+        val (cursorCreatedAt, cursorId) = decodeCursor(filter.cursor)
+
+        // infra로 전달할 Query 객체 구성
+        val query = PaymentQuery(
+            partnerId = filter.partnerId,
+            status = filter.status?.let { im.bigs.pg.domain.payment.PaymentStatus.valueOf(it.uppercase()) },
+            from = filter.from,
+            to = filter.to,
+            limit = filter.limit,
+            cursorCreatedAt = cursorCreatedAt?.atZone(ZoneOffset.UTC)?.toLocalDateTime(),
+            cursorId = cursorId
+        )
+
+        // 페이징 조회
+        val page = paymentOutPort.findBy(query)
+
+        // nextCursor 생성
+        val nextCursor = encodeCursor(
+            page.nextCursorCreatedAt?.toInstant(ZoneOffset.UTC),
+            page.nextCursorId
+        )
+
+        // 통계 조회
+        val summaryProjection = paymentOutPort.summary(
+            PaymentSummaryFilter(
+                partnerId = filter.partnerId,
+                status = filter.status?.let { im.bigs.pg.domain.payment.PaymentStatus.valueOf(it.uppercase()) },
+                from = filter.from,
+                to = filter.to
+            )
+        )
+
+        val summary = PaymentSummary(
+            count = summaryProjection.count,
+            totalAmount = summaryProjection.totalAmount,
+            totalNetAmount = summaryProjection.totalNetAmount
+        )
+
+        // 결과 반환
         return QueryResult(
-            items = emptyList(),
-            summary = PaymentSummary(count = 0, totalAmount = java.math.BigDecimal.ZERO, totalNetAmount = java.math.BigDecimal.ZERO),
-            nextCursor = null,
-            hasNext = false,
+            items = page.items,
+            summary = summary,
+            nextCursor = nextCursor,
+            hasNext = page.hasNext
         )
     }
+
 
     /** 다음 페이지 이동을 위한 커서 인코딩. */
     private fun encodeCursor(createdAt: Instant?, id: Long?): String? {
