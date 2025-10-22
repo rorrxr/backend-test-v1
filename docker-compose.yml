@@ -1,37 +1,39 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  # MariaDB 설정
+  # MariaDB
   mariadb:
-    image: mariadb:11.3
+    image: mariadb:latest
     container_name: mariadb
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: root1234
-      MARIADB_DATABASE: payment_db
-      MARIADB_USER: appuser
-      MARIADB_PASSWORD: app1234
+      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MARIADB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p${MARIADB_ROOT_PASSWORD} | grep 'mysqld is alive' || exit 1"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 10
+      start_period: 40s
     ports:
       - "3307:3306"
     volumes:
-      - mariadb-data:/var/lib/mysql
+      - mariadb_data:/var/lib/mysql
     networks:
       - pg-network
 
-  # payment gateway
+
+  # Payment Gateway (Spring Boot)
   pg-payment-server:
     build:
-      context: .
-      dockerfile: ./modules/bootstrap/api-payment-gateway/Dockerfile
+      context: ./backend-test-v1
+      dockerfile: ./backend-test-v1/modules/bootstrap/Dockerfile
     container_name: pg-payment-server
     depends_on:
-      - mariadb
-      - redis
+      mariadb:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb:3306/payment_db
       SPRING_DATASOURCE_USERNAME: appuser
@@ -42,7 +44,7 @@ services:
     networks:
       - pg-network
 
-  # prometheus 프로메테우스 설정
+  # Prometheus
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
@@ -60,7 +62,7 @@ services:
     networks:
       - pg-network
 
-  # Grafana 그라파나 설정
+  # Grafana
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
@@ -79,7 +81,7 @@ services:
       - pg-network
 
 volumes:
-  mariadb-data:
+  mariadb_data:
   prometheus_data:
   grafana_data:
 
