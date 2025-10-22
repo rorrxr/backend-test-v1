@@ -1,143 +1,242 @@
-# 백엔드 사전 과제 – 결제 도메인 서버
+# 💳 결제 도메인 서버 – Payment Domain Server
 
-본 과제는 나노바나나 페이먼츠의 “결제 도메인 서버”를 주제로, 백엔드 개발자의 설계·구현·테스트 역량을 평가하기 위한 사전 과제입니다. 제공된 멀티모듈 + 헥사고널 아키텍처 기반 코드를 바탕으로 요구사항을 충족하는 기능을 완성해 주세요.
+## 📖 목차
 
-주의: 이 디렉터리(`backend-test-v1`)만 압축/전달됩니다. 외부 경로를 참조하지 않도록 README/코드/스크립트를 유지해 주세요.
+1. [🔎 프로젝트 개요](#-프로젝트-개요)
+2. [💻 기술 스택](#-기술-스택)
+3. [🎯 구현 목표](#-구현-목표)
+4. [🚀 주요 기능](#-주요-기능)
+5. [🧠 기술적 의사결정](#-기술적-의사결정)
+6. [🚨 트러블슈팅](#-트러블슈팅)
+7. [🧩 아키텍처](#-아키텍처)
+8. [🧪 테스트](#-테스트)
+9. [✅ 향후 개선 방향](#-향후-개선-방향)
+10. [💬 마지막 한마디 및 과제 소감](#-마지막-한마디-및-과제-소감)
 
-## 1. 배경 시나리오
-- 본 서비스는 결제대행사 “나노바나나 페이먼츠”의 결제 도메인 서버입니다.
-- 현재는 제휴사가 없어 “목업 PG”만 연동되어 있으며, 결제는 항상 성공합니다.
-- 정산금 계산식은 임시로 “하드코드(3% + 100원)” 되어 있습니다.
 
-여러 제휴사와 연동을 시작하면서 다음이 필요합니다.
-1) 새로운 결제 제휴사 연동(기본 스켈레톤 제공)
-2) 결제 내역 조회 API 제공(통계 포함, 커서 기반 페이지네이션)
-3) 제휴사별 수수료 정책 적용(하드코드 제거, 정책 테이블 기반)
+---
 
-## 2. 과제 목표
-아래 항목을 모두 구현/보강하고, 테스트로 증명해 주세요.
+## 🔎 프로젝트 개요
 
-1) 결제 생성
-- 엔드포인트: POST `/api/v1/payments`
-- 내용: 결제 승인(외부 PG 연동) 후, 수수료/정산금 계산 결과를 포함하여 저장
-- 주의: 현재 `PaymentService`는 하드코드된 수수료(3% + 100원)를 사용합니다. 제휴사별 정책(percentage, fixedFee, effective_from)에 따라 계산하도록 리팩터링하세요.  
-  또한 반드시 [11. 참고자료](#11-참고자료) 의 과제 내 연동 대상 API 문서를 참고하여 TestPg 와 Rest API 를 통한 연동을 진행해야 합니다. 
+본 프로젝트는 **나노바나나 페이먼츠(NanoBanana Payments)의 결제 도메인 서버** 구현 과제입니다.
 
-2) 결제 내역 조회 + 통계
-- 엔드포인트: GET `/api/v1/payments`
-- 쿼리: `partnerId`, `status`, `from`, `to`, `cursor`, `limit`
-- 응답: `items[]`, `summary{count,totalAmount,totalNetAmount}`, `nextCursor`, `hasNext`
-- 요구: 통계는 반드시 필터와 동일한 집합을 대상으로 계산되어야 하며, 커서 기반 페이지네이션을 사용해야 합니다.
+목표는 헥사고널 아키텍처를 기반으로 **제휴사별 수수료 정책**, **결제 내역 조회/통계**, **PG 연동**을 완전하게 구현하는 것입니다.
 
-3) 제휴사별 수수료 정책
-- 스키마: `sql/scheme.sql` 의 `partner`, `partner_fee_policy`, `payment` 참조(필요시 보완/수정 가능)
-- 규칙: `effective_from` 기준 가장 최근(<= now) 정책을 적용, 금액은 HALF_UP로 반올림
-- 보안: 카드번호 등 민감정보는 저장/로깅 금지(제공 코드도 마스킹/부분 저장만 수행)
+---
 
-## 3. 제공 코드 개요(헥사고널)
-- `modules/domain`: 순수 도메인 모델/유틸(FeePolicy, Payment, FeeCalculator 등)
-- `modules/application`: 유스케이스/포트(PaymentUseCase, QueryPaymentsUseCase, Repository/PgClient 포트, PaymentService 등)
-  - 의도적으로 PaymentService에 “하드코드 수수료 계산”이 남아 있습니다. 이를 정책 기반으로 개선하세요.
-- `modules/infrastructure/persistence`: JPA 엔티티·리포지토리·어댑터(pageBy/summary 제공)
-- `modules/external/pg-client`: PG 연동 어댑터(Mock, TestPay 예시)
-- `modules/bootstrap/api-payment-gateway`: 실행 가능한 Spring Boot API(Controller, 시드 데이터)
+## 💻 기술 스택
 
-아키텍처 제약
-- 멀티모듈 경계/의존 역전/포트-어댑터 패턴을 유지할 것
-- `domain`은 프레임워크 의존 금지(순수 Kotlin)
+| 구분         | 사용 기술                  |
+|------------|------------------------|
+| Language   | Kotlin (JDK 22)        |
+| Framework  | Spring Boot 3.5.x      |
+| Database   | H2 / MariaDB           |
+| ORM        | Spring Data JPA        |
+| Monitoring | Prometheus + Grafana   |
+| DevOps     | Docker, docker-compose |
+| API Docs   | Springdoc OpenAPI      |
 
-## 4. 필수 요구 사항
-- 결제 생성 시 저장 레코드에 다음 필드가 정확히 기록됨: 금액, 적용 수수료율, 수수료, 정산금, 카드 식별(마스킹), 승인번호, 승인시각, 상태
-- 조회 API에서 필터 조합별 `summary`가 `items`와 동일 집합을 정확히 집계
-- 커서 페이지네이션이 정렬 키(`createdAt desc, id desc`) 기반으로 올바르게 동작(다음 페이지 유무/커서 일관성)
-- 제휴사별 수수료 정책(비율/고정/시점)이 적용되어 계산 결과가 맞음
-- 모든 신규/수정 로직에 대해 의미 있는 단위/통합 테스트 존재, 빠르고 결정적
+---
 
-## 5. 개발 환경 & 실행 방법
-- JDK 21, Gradle Wrapper 사용
-- H2 인메모리 DB 기본 실행(필요 시 schema/data/migration 구성 변경 가능)
+## 🎯 구현 목표
 
-명령어
-```bash
-./gradlew build                  # 컴파일 + 모든 테스트
-./gradlew test                   # 테스트만
-./gradlew :modules:bootstrap:api-payment-gateway:bootRun   # API 실행
-./gradlew ktlintCheck | ktlintFormat  # 코드 스타일 검사/자동정렬
-```
-기본 포트: 8080
+| 기능 | 설명 |
+  | --- | --- |
+| **결제 생성 API** | PG 승인 후 수수료/정산금 계산 및 저장 |
+| **결제 내역 조회 API** | 커서 기반 페이지네이션 + 통계 포함 응답 |
+| **수수료 정책 반영** | 제휴사별 비율·고정 수수료 및 시점(`effective_from`) 반영 |
+| **테스트 보강** | 단위·통합 테스트로 기능 검증 및 회귀 방지 |
+| **추가 구현** | Micrometer 기반 메트릭, TestPG 연동, MockPG 전략 패턴 확장 |
 
-## 6. API 사양(요약)
-1) 결제 생성
-```
-POST /api/v1/payments
+## 🚀 주요 기능
+
+### 1️⃣ 결제 생성 API (`POST /api/v1/payments`)
+
+- PG 승인(`PgService`) → 수수료 정책 조회(`FeePolicyOutPort`) → 수수료 계산(`FeeCalculator`)
+- `Payment` 도메인 생성 및 영속화
+- 반올림 규칙: **HALF_UP**
+- 카드 정보: BIN/Last4만 저장, 나머지는 미저장
+
+### 결제 생성 결과 예시
+
+```jsx
 {
   "partnerId": 1,
   "amount": 10000,
-  "cardBin": "123456",
-  "cardLast4": "4242",
-  "productName": "샘플"
+  "appliedFeeRate": 0.0235,
+  "feeAmount": 335,
+  "netAmount": 9665,
+  "status": "APPROVED"
 }
 
-200 OK
-{
-  "id": 99,
-  "partnerId": 1,
-  "amount": 10000,
-  "appliedFeeRate": 0.0300,
-  "feeAmount": 400,
-  "netAmount": 9600,
-  "cardLast4": "4242",
-  "approvalCode": "...",
-  "approvedAt": "2025-01-01T00:00:00Z",
-  "status": "APPROVED",
-  "createdAt": "2025-01-01T00:00:00Z"
-}
 ```
 
-2) 결제 조회(통계+커서)
-```
-GET /api/v1/payments?partnerId=1&status=APPROVED&from=2025-01-01T00:00:00Z&to=2025-01-02T00:00:00Z&limit=20&cursor=
+### 2️⃣ 결제 내역 조회 API (`GET /api/v1/payments`)
 
-200 OK
+- 필터: `partnerId`, `status`, `from`, `to`
+- 커서 기반 페이지네이션(`createdAt DESC, id DESC`)
+- `summary` 객체는 조회 결과 집합과 동일한 조건으로 계산
+
+### 결제 내역 조회 예시
+
+```jsx
 {
-  "items": [ { ... }, ... ],
+  "items": [{ "id": 1, "amount": 10000, ... }],
   "summary": { "count": 35, "totalAmount": 35000, "totalNetAmount": 33950 },
   "nextCursor": "ey1...",
   "hasNext": true
 }
 ```
 
-## 7. 데이터베이스 가이드
-- 기준 테이블(예시):
-  - `partner(id, code, name, active)`
-  - `partner_fee_policy(id, partner_id, effective_from, percentage, fixed_fee)`
-  - `payment(id, partner_id, amount, applied_fee_rate, fee_amount, net_amount, card_bin, card_last4, approval_code, approved_at, status, created_at, updated_at)`
-- 인덱스 권장: `payment(created_at desc, id desc)`, `payment(partner_id, created_at desc)`, 검색 조건 컬럼
-- 정확한 스키마/인덱스는 요구사항을 만족하는 선에서 자유롭게 보완 가능
+**3️⃣ 수수료 정책 적용**
 
-## 8. 제출물
-- github 저장소 링크를 사전과제 전달 메일로 회신. (메일 본문에 채용공고 명 / 실명 기재 필수)
-- 포함 사항: 구현 코드, 테스트, 간단 사용가이드(필요 시 README 보강), 변경이력, 추가 선택 구현 설명(선택)
+- `partner_fee_policy` 테이블 기반, `effective_from` <= now 중 가장 최근 정책 적용
+- 정책 변경 시 기존 결제에는 소급되지 않음
 
-## 9. 평가 기준
-- 아키텍처 일관성(모듈 경계, 포트-어댑터, 의존 역전)
-- 도메인 모델링 적절성 및 가독성(KDoc, 네이밍)
-- 기능 정확성(통계 일치, 커서 페이징 동작, 수수료 계산)
-- 테스트 품질(결정적/빠름/커버리지)
-- 보안/개인정보 처리(민감정보 최소 저장, 로깅 배제)
-- 변경 이력 품질(의미 있는 커밋 메시지, 작은 단위 변경)
+### 수수료 정책 예시
 
-## 10. 선택 과제(가산점)
-- 추가 제휴사 연동(Adapter 추가 및 전략 선택)
-- 오픈API 문서화(springdoc 등) 또는 간단한 운영지표(로그/메트릭)
-- MariaDB 등 외부 DB로 전환(docker-compose 포함) 및 마이그레이션 도구 적용
+| partner_id | effective_from | percentage | fixed_fee |
+|-------------|----------------|-------------|------------|
+| 1 | 2024-12-01 | 0.0250 | 100 |
+| 1 | 2025-02-01 | 0.0300 | 50 |
 
-## 11. 참고자료
-- [과제 내 연동 대상 API 문서](https://api-test-pg.bigs.im/docs/index.html)
 
-## 12. 주의사항
-- 전달한 본 프로젝트는 정상동작하지 않습니다. 요구사항을 포함해, 정상 동작을 목표로 진행하세요.
-- 본 과제와 관련한 어떠한 질문도 받지 않습니다.
-- 제출물을 기준으로 면접시 코드리뷰를 진행합니다. 이를 고려해주세요. 
+---
 
-행운을 빕니다. 읽기 쉬운 코드, 일관된 설계, 신뢰할 수 있는 테스트를 기대합니다.
+### 4️⃣ 제휴사 추가 연동
+
+- PG 연동 인터페이스(`PgClientOutPort`)에 새 어댑터 구현 후 DI 등록
+- 예시: `TestPayClientAdapter`, `NicePayClientAdapter`, `KakaoPayClientAdapter` 등
+
+---
+
+## 🧠 기술적 의사결정
+
+### 헥사고널 아키텍처 도입
+
+- MSA 및 확장 가능한 구조를 고려하여 **도메인 중심 설계(Domain-Centric)** 채택
+- 외부 연동(PG, Repository 등)을 어댑터로 분리해 결합도 최소화
+
+### FeePolicy 기반 수수료 계산
+
+- 기존의 “하드코드 3% + 100원” 로직을 `FeePolicy` 엔티티 기반 계산으로 변경
+- `FeeCalculator` 유틸은 순수 함수형 구조로 반올림 방식 및 단위 테스트 완비
+
+### Cursor 기반 Pagination
+
+- 기존 Offset 기반 대비 **일관성·성능 향상**
+- 정렬 키: `(createdAt DESC, id DESC)`
+- 페이징 커서 암호화 처리 (`Base64` 인코딩)
+
+### Micrometer Metrics
+
+- `PaymentService` 내부 주요 단계에 Timer, Counter 등록
+- Prometheus 연동을 고려한 `MeterRegistry` 주입
+
+---
+
+## 🚨 트러블슈팅
+
+### 1️⃣ FeePolicy 반영 안 되는 문제
+
+- **원인:** Partner ID에 따른 정책 쿼리 미적용
+- **해결:** JPA `findTopByPartnerIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDesc()` 로 수정
+
+### 2️⃣ 커서 페이지네이션 불일치
+
+- **원인:** 정렬 기준 불일치(`createdAt ASC` 사용)
+- **해결:** 정렬 기준을 `(createdAt DESC, id DESC)` 로 통일하고, 커서 비교 로직 수정
+
+### 3️⃣ 테스트 데이터 간 일관성 문제
+
+- **해결:** 테스트마다 `@DataJpaTest` + `Instant.now()` 고정값 사용
+- **결과:** 커버리지 및 결정성 확보
+
+---
+
+## 🧩 아키텍처
+
+본 프로젝트는 **헥사고널(Ports & Adapters)** 구조로 설계되었습니다.
+
+```
+modules
+ ├── domain                        # 순수 도메인 모델
+ │   ├── partner/FeePolicy.kt
+ │   ├── payment/Payment.kt
+ │   └── calculation/FeeCalculator.kt
+ │
+ ├── application                    # 유스케이스 (비즈니스 로직)
+ │   ├── payment/service/PaymentService.kt
+ │   ├── payment/port/in/PaymentUseCase.kt
+ │   ├── payment/port/out/PaymentOutPort.kt
+ │   ├── partner/port/out/FeePolicyOutPort.kt
+ │   └── pg/service/PgService.kt
+ │
+ ├── infrastructure/persistence     # JPA 기반 어댑터
+ │   ├── payment/repository/PaymentJpaRepository.kt
+ │   ├── payment/entity/PaymentEntity.kt
+ │   └── partner/repository/FeePolicyRepository.kt
+ │
+ ├── external/pg-client             # 외부 PG 연동(Mock/TestPay)
+ │   └── TestPgClientAdapter.kt
+ │
+ └── bootstrap/api-payment-gateway  # 실제 실행 모듈 (Spring Boot Entry)
+     └── PaymentController.kt
+
+```
+
+### 주요 의존성 원칙
+
+- `domain`은 어떠한 외부 의존성도 갖지 않음
+- `application`은 도메인 로직 조합 및 외부 포트 호출 담당
+- `infrastructure`는 JPA, PG 등 실제 구현체를 제공
+- 각 계층은 **의존 역전 원칙(DIP)** 을 준수
+
+---
+
+## 🧪 테스트
+
+### 단위 테스트
+
+| 클래스 | 주요 검증 |
+| --- | --- |
+| `FeeCalculatorTest` | 비율+고정 수수료 조합 반올림 검증 |
+| `PaymentServiceTest` | 수수료 정책 적용 및 정산금 계산 검증 |
+| `PgServiceTest` | Mock PG 승인 요청/응답 플로우 검증 |
+
+### 통합 테스트
+
+| 테스트명 | 설명 |
+| --- | --- |
+| `결제저장소커서페이징Test` | 커서 페이징과 summary 일관성 검증 |
+| `PaymentIntegrationTest` | end-to-end 결제 생성 + 조회 API 검증 |
+| `FeePolicyEffectiveDateTest` | 정책 시점(`effective_from`) 적용 검증 |
+
+---
+
+## ✅ 향후 개선 방향
+
+| 개선 항목                           | 설명                                 |
+|---------------------------------|------------------------------------|
+| **Kafka 이벤트 발행**                | 결제 완료 후 비동기 정산 이벤트 발행              |
+| **Resilience4j CircuitBreaker** | PG 연동 실패 시 자동 복구 및 fallback 처리     |
+| **외부 결제 API 연동**                | 외부 결제 PG API (ex : 카카오페이, 토스페이) 연동 |
+
+## 💬 마지막 한마디 및 과제 소감
+
+이번 과제를 통해 **헥사고널 아키텍처**에 대해 깊이 있게 학습할 수 있는 좋은 기회였습니다.  
+평소에도 도메인 중심 설계(DDD)와 같이 확장성을 고려한 설계에 관심이 많았는데 실제 구현 과정을 통해 아키텍처 설계의 중요성을 다시 한번 체감했습니다.
+
+또한 저는 앞으로 개발자로서 성장하기 위해서는 **하나의 언어에 머무르지 않고, 여러 언어 간의 자유로운 전환과 사고의 유연함**이 중요하다고 생각합니다.  
+그런 의미에서 이번 과제는 **Kotlin과 Spring Boot (일명 "코프링") 환경**을 본격적으로 탐구할 수 있었던 뜻깊은 경험이었습니다.  
+코틀린의 함수형 패러다임과 스프링의 강력한 생태계가 만나면서 얻을 수 있는 생산성과 가독성의 조화를 직접 체감할 수 있었습니다.
+
+이번 테스트 과제를 통해 새로운 기술 스택을 실무 수준으로 익히는 계기가 되었으며
+이를 통해 한층 더 성장한 개발자로 나아갈 자신감을 얻었습니다.  
+이런 기회를 주셔서 진심으로 감사드립니다.
+
+마지막으로 **JPQL과 QueryDSL의 차이**, 그리고 **Offset 기반 vs Cursor 기반 페이지네이션**을 이전에 정리한 제 블로그 글을 공유합니다.  
+해당 내용은 이번 과제의 설계 결정에도 큰 도움이 되었습니다.
+
+- 🔗 [Spring JPQL vs QueryDSL](https://deve1opment-story.tistory.com/entry/Spring-JPQL-vs-QueryDSL)
+- 🔗 [Spring 오프셋 기반 vs 커서 기반 페이지네이션 비교](https://deve1opment-story.tistory.com/entry/Spring-%EC%98%A4%ED%94%84%EC%85%8B-%EA%B8%B0%EB%B0%98-vs-%EC%BB%A4%EC%84%9C-%EA%B8%B0%EB%B0%98-%ED%8E%98%EC%9D%B4%EC%A7%95-%EA%B8%B0%EB%B2%95)
