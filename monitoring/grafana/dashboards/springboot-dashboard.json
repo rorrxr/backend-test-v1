@@ -45,6 +45,32 @@
         { "expr": "system_cpu_usage", "legendFormat": "System CPU" }
       ],
       "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 }
+    },
+    {
+      "type": "stat",
+      "title": "Payment Success vs Fail",
+      "targets": [
+        { "expr": "payment_success_total", "legendFormat": "Success" },
+        { "expr": "payment_fail_total", "legendFormat": "Fail" }
+      ],
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 6 }
+    },
+    {
+      "type": "gauge",
+      "title": "Payment Success Rate (%)",
+      "targets": [
+        {
+          "expr": "(payment_success_total / (payment_success_total + payment_fail_total)) * 100"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "unit": "percent"
+        }
+      }
     }
   ]
 }

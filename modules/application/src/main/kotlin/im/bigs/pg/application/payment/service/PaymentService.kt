@@ -16,6 +16,7 @@ import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
+import io.micrometer.core.instrument.MeterRegistry
 
 /**
  * 결제 생성 유스케이스 구현체.
@@ -28,6 +29,7 @@ class PaymentService(
     private val feePolicyRepository: FeePolicyOutPort,
     private val paymentRepository: PaymentOutPort,
     private val pgClients: List<PgClientOutPort>,
+    private val meterRegistry: MeterRegistry,
 ) : PaymentUseCase {
     /**
      * 결제 승인/수수료 계산/저장을 순차적으로 수행합니다.
@@ -42,39 +44,56 @@ class PaymentService(
         val pgClient = pgClients.firstOrNull { it.supports(partner.id) }
             ?: throw IllegalStateException("No PG client for partner ${partner.id}")
 
-        // PG 승인 요청
-        val approve = pgClient.approve(
-            PgApproveRequest(
+        return try {
+            // PG 승인 요청
+            val approve = pgClient.approve(
+                PgApproveRequest(
+                    partnerId = partner.id,
+                    amount = command.amount,
+                    cardBin = command.cardBin,
+                    cardLast4 = command.cardLast4,
+                    productName = command.productName,
+                ),
+            )
+            // 제휴사별 수수료 정책 조회
+            val policy = feePolicyRepository.findEffectivePolicy(partner.id)
+                ?: FeePolicy.default(partner.id)
+
+            // 정책 기반 수수료 계산 (반올림 포함)
+            val fee = policy.calculateFee(command.amount)
+            val net = command.amount.subtract(fee)
+
+            // Payment 생성 및 저장
+            val payment = Payment(
                 partnerId = partner.id,
                 amount = command.amount,
+                appliedFeeRate = policy.percentage,
+                feeAmount = fee,
+                netAmount = net,
                 cardBin = command.cardBin,
                 cardLast4 = command.cardLast4,
-                productName = command.productName,
-            ),
-        )
+                approvalCode = approve.approvalCode,
+                approvedAt = approve.approvedAt,
+                status = PaymentStatus.APPROVED,
+            )
 
-        // 제휴사별 수수료 정책 조회
-        val policy = feePolicyRepository.findEffectivePolicy(partner.id)
-            ?: FeePolicy.default(partner.id)
+            val saved = paymentRepository.save(payment)
 
-        // 정책 기반 수수료 계산 (반올림 포함)
-        val fee = policy.calculateFee(command.amount)
-        val net = command.amount.subtract(fee)
+            // 결제 성공 카운터 증가
+            recordPaymentMetric(partner.id, success = true)
 
-        // Payment 생성 및 저장
-        val payment = Payment(
-            partnerId = partner.id,
-            amount = command.amount,
-            appliedFeeRate = policy.percentage,
-            feeAmount = fee,
-            netAmount = net,
-            cardBin = command.cardBin,
-            cardLast4 = command.cardLast4,
-            approvalCode = approve.approvalCode,
-            approvedAt = approve.approvedAt,
-            status = PaymentStatus.APPROVED,
-        )
-
-        return paymentRepository.save(payment)
+            saved
+        }catch (e: Exception) {
+            // 결제 실패 카운터 증가
+            recordPaymentMetric(command.partnerId, success = false)
+            throw e
+        }
+    }
+    /**
+     * partnerId별 성공/실패 메트릭을 Micrometer에 기록합니다.
+     */
+    private fun recordPaymentMetric(partnerId: Long, success: Boolean) {
+        val metricName = if (success) "payment_success_total" else "payment_fail_total"
+        meterRegistry.counter(metricName, "partnerId", partnerId.toString()).increment()
     }
 }
