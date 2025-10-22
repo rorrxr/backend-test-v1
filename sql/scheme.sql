@@ -5,6 +5,10 @@ create table if not exists partner (
   code varchar(64) not null unique,
   name varchar(255) not null,
   active boolean not null default true
+  pg_type varchar(50) not null default 'partner',
+  created_at timestamp not null,
+  updated_at timestamp not null,
+  index idx_partner_code (code desc)
 );
 
 -- partner fee policy
