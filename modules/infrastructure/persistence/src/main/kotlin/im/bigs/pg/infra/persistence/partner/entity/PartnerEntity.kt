@@ -1,7 +1,10 @@
 package im.bigs.pg.infra.persistence.partner.entity
 
+import im.bigs.pg.domain.partner.PgType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
@@ -22,4 +25,7 @@ class PartnerEntity(
     var name: String,
     @Column(nullable = false)
     var active: Boolean = true,
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pg_type")
+    val pgType: PgType,   // 결제사 추가
 )

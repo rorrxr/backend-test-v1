@@ -6,16 +6,12 @@ import im.bigs.pg.application.payment.port.`in`.PaymentUseCase
 import im.bigs.pg.application.payment.port.`in`.PaymentCommand
 import im.bigs.pg.application.payment.port.out.PaymentOutPort
 import im.bigs.pg.application.pg.port.out.PgApproveRequest
-import im.bigs.pg.application.pg.port.out.PgClientOutPort
-import im.bigs.pg.domain.calculation.FeeCalculator
+import im.bigs.pg.application.pg.service.PgService
 import im.bigs.pg.domain.partner.FeePolicy
+import im.bigs.pg.domain.partner.PgType
 import im.bigs.pg.domain.payment.Payment
 import im.bigs.pg.domain.payment.PaymentStatus
 import org.springframework.stereotype.Service
-import java.math.BigDecimal
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneOffset
 import io.micrometer.core.instrument.MeterRegistry
 
 /**
@@ -28,7 +24,7 @@ class PaymentService(
     private val partnerRepository: PartnerOutPort,
     private val feePolicyRepository: FeePolicyOutPort,
     private val paymentRepository: PaymentOutPort,
-    private val pgClients: List<PgClientOutPort>,
+    private val pgService: PgService,
     private val meterRegistry: MeterRegistry,
 ) : PaymentUseCase {
     /**
@@ -41,8 +37,7 @@ class PaymentService(
             ?: throw IllegalArgumentException("Partner not found: ${command.partnerId}")
         require(partner.active) { "Partner is inactive: ${partner.id}" }
 
-        val pgClient = pgClients.firstOrNull { it.supports(partner.id) }
-            ?: throw IllegalStateException("No PG client for partner ${partner.id}")
+        val pgClient = pgService.getClient(partner.pgType)
 
         return try {
             // PG 승인 요청

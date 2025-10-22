@@ -3,6 +3,7 @@ package im.bigs.pg.external.pg
 import im.bigs.pg.application.pg.port.out.PgApproveRequest
 import im.bigs.pg.application.pg.port.out.PgApproveResult
 import im.bigs.pg.application.pg.port.out.PgClientOutPort
+import im.bigs.pg.domain.partner.PgType
 import im.bigs.pg.domain.payment.PaymentStatus
 import org.springframework.stereotype.Component
 import java.time.LocalDateTime
@@ -17,7 +18,7 @@ import kotlin.random.Random
  */
 @Component
 class MockPgClient : PgClientOutPort {
-    override fun supports(partnerId: Long): Boolean = partnerId % 2L == 1L
+    override val pgType = PgType.TESTOUTPAY
 
     override fun approve(request: PgApproveRequest): PgApproveResult {
         val dateOfMonth = LocalDate.now().format(DateTimeFormatter.ofPattern("MMdd"))

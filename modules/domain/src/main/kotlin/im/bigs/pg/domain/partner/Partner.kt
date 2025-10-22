@@ -15,4 +15,5 @@ data class Partner(
     val code: String,
     val name: String,
     val active: Boolean = true,
+    val pgType: PgType, // 외부 결제사 타입
 )
